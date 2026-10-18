@@ -9,7 +9,7 @@ import { EmployeePicker } from "./employee-picker";
 type SearchParams = Promise<{ user?: string; month?: string }>;
 
 function parseMonth(value: string | undefined, tz: string): { year: number; month: number } {
-  const now = dayKey(Date.now(), tz);
+  const now = dayKey(nowMs(), tz);
   const fallback = { year: Number(now.slice(0, 4)), month: Number(now.slice(5, 7)) };
   if (!value) return fallback;
   const match = /^(\d{4})-(\d{2})$/.exec(value);

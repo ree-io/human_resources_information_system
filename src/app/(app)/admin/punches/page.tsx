@@ -14,8 +14,8 @@ export default async function PunchLogPage({ searchParams }: { searchParams: Sea
   const sp = await searchParams;
 
   const users = listUsers(true);
-  const todayKey = dayKey(Date.now(), tz);
-  const defaultFrom = dayKey(Date.now() - 13 * 24 * 60 * 60 * 1000, tz);
+  const todayKey = dayKey(nowMs(), tz);
+  const defaultFrom = dayKey(nowMs() - 13 * 24 * 60 * 60 * 1000, tz);
   const userFilter = sp.user && sp.user !== "all" ? Number(sp.user) : "all";
   const fromKey = /^\d{4}-\d{2}-\d{2}$/.test(sp.from ?? "") ? sp.from! : defaultFrom;
   const toKey = /^\d{4}-\d{2}-\d{2}$/.test(sp.to ?? "") ? sp.to! : todayKey;

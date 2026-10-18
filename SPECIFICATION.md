@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **grilling complete (confirmed by user); implementation paused after TODO #2.**
+Status: **grilling complete (confirmed by user); implementation paused after TODO #3** (2026-10-18).
 
 ---
 
@@ -68,7 +68,7 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
 
 - [x] **#1** Scaffold Next.js+TS+Tailwind+shadcn/ui project at repo root
 - [x] **#2** SQLite data layer: schema (users, punches, corrections, settings) + migrations — *done, see §3*
-- [ ] **#3** Auth: cookie sessions, bcrypt, login page, first-run create-admin screen
+- [x] **#3** Auth: cookie sessions, bcrypt, login page, first-run create-admin screen — *done, see §3*
 - [ ] **#4** Employee punch flow: status toggle, event log write, 60s cooldown
 - [ ] **#5** Employee DTR: monthly grid + correction request form
 - [ ] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings
@@ -89,21 +89,31 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
   - `users.ts`, `punches.ts`, `corrections.ts` (incl. approve/reject with audit), `settings.ts`, `dtr.ts` (same-day pairing, month grid builder)
 - **Verification performed** (2026-10-18): `tsc --noEmit` → clean; live `tsx` smoke → all 6 tables created; user CRUD, punch insert/range/last, tz roundtrip (`2026-10-18 08:30 Asia/Manila` correct), settings roundtrip all pass; test rows cleaned (db has 0 users, ready for setup/seed).
 
-### Important: code for TODOs #3–#6 already exists but is UNVERIFIED
+### TODO #3 — COMPLETE (verified)
 
-Written before the pause, compiles (`tsc` clean), but **not yet exercised**:
+Live smoke suite against `next dev` (curl, cookie jars), all PASS:
 
-- **#3 Auth**: `/api/auth/login`, `/api/auth/logout`, `/api/setup`, `/login`, `/setup`, root `page.tsx` redirect logic, `layout.tsx` (`instant = false`, Toaster).
+- **Routing**: empty DB `/` → `/setup`; logged-out `/` and `/admin/*` → `/login`; session user `/` → `/admin` (role-correct redirect).
+- **Setup**: valid create-admin → 200 + `hris_session` cookie + `/admin`; second setup → 409; page `/setup` redirects to `/login` once users exist; validation on fresh DB: short password / bad username / missing fields → 400 with messages.
+- **Login/logout**: wrong password → 401; valid → 200 + cookie; **inactive user → 401 by design** (generic "Invalid username or password" — no account-state disclosure, intentional); empty body → 400; logout → 200 and cookie cleared.
+- **Page renders with session**: `/admin/employees` 200 (shows created user), `/dtr` 200, `/punch` 200.
+- **Repo-wide gates (first ever run of build)**: `npm run lint` clean (all `react-hooks/purity` `Date.now` uses routed through `nowMs()` from `src/lib/tz.ts`), `tsc --noEmit` clean, **`npm run build` PASSES** (routes all `ƒ Dynamic` except `/login`, `/setup` static — correct).
+- **Dev-console noise (benign, known)**: `instant = false` on root layout is the *sanctioned* opt-out for session-reading routes per `authentication-with-cache-components.md`; dev still logs "Could not validate `instant` … NEXT_REDIRECT" and "unstable value `Date.now()` while prerendering" — **dev-only, build unaffected** (verified). Do not chase these; the doc's "cookies() outside Suspense is a build error" applies to routes without the opt-out.
+- Wipe-down done: `data/` removed (fresh start for next session), dev server killed.
+
+### Important: code for TODOs #4–#7 already exists but is UNVERIFIED
+
+Written before the pause, compiles (`tsc` clean), **`npm run build` passes with them included**, but **not yet exercised at runtime** (except incidental 200s during the auth suite):
+
 - **#4 Punch**: `/api/punch` (cooldown + IP), `/punch` + `punch-button.tsx`.
 - **#5 DTR**: `/dtr` page, `components/dtr/dtr-table.tsx` (+ `MonthNav`, `toDtrDays`), `correction-dialog.tsx`, `/api/corrections`.
 - **#6 Admin**: full `/admin/*` set + all `/api/admin/*` routes (see file list in `src/app`).
-- **#7 Seed**: `scripts/seed.ts` written (unused-import cleaned) but **never run**.
+- **#7 Seed**: `scripts/seed.ts` written but **never run**.
 
-Known pending verification work for the new session:
+Remaining work for the next session:
 
-1. Re-run `npm run lint` — purity errors were fixed via `nowMs()` but **not re-run after the last edits**.
-2. `npm run build` has **never been run** — watch for cacheComponents/prerender surprises on `instant = false` routes (dev overlay may still warn; if build fails, wrap session reads in `<Suspense>` per `node_modules/next/dist/docs/01-app/01-getting-started/08-caching.md`).
-3. `npm run seed` then `npm run dev` smoke: setup/login → punch toggle → cooldown 429 → DTR grid → correction request → admin approve → punch log/settings.
-4. `next typegen` was run once; re-run if route types go stale.
+1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: punch toggle → cooldown 429 → DTR grid → correction request → admin approve/reject → punch log filters → settings save.
+2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #4–#7 edits).
+3. `next typegen` was run once; re-run if route types go stale.
 
 Nothing has been committed to git (working tree only). Do not commit unless explicitly asked.
