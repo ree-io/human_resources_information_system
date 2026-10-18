@@ -59,13 +59,33 @@ CREATE TABLE IF NOT EXISTS settings (
 
 const globalForDb = globalThis as unknown as { __hrisDb?: Database.Database };
 
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function open(): Database.Database {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  const database = new Database(DB_PATH);
-  database.pragma("journal_mode = WAL");
-  database.pragma("foreign_keys = ON");
-  database.exec(SCHEMA);
-  return database;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 15; attempt++) {
+    let database: Database.Database | undefined;
+    try {
+      database = new Database(DB_PATH);
+      database.pragma("busy_timeout = 5000");
+      database.pragma("journal_mode = WAL");
+      database.pragma("foreign_keys = ON");
+      database.exec(SCHEMA);
+      return database;
+    } catch (err) {
+      lastErr = err;
+      try {
+        database?.close();
+      } catch {
+        // ignore close failures while retrying
+      }
+      sleepSync(100);
+    }
+  }
+  throw lastErr;
 }
 
 export const db = (globalForDb.__hrisDb ??= open());

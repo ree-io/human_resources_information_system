@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **grilling complete (confirmed by user); implementation paused after TODO #4** (2026-10-18).
+Status: **grilling complete (confirmed by user); implementation paused after TODO #5** (2026-10-18).
 
 ---
 
@@ -70,7 +70,7 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
 - [x] **#2** SQLite data layer: schema (users, punches, corrections, settings) + migrations — *done, see §3*
 - [x] **#3** Auth: cookie sessions, bcrypt, login page, first-run create-admin screen — *done, see §3*
 - [x] **#4** Employee punch flow: status toggle, event log write, 60s cooldown — *done, see §3*
-- [ ] **#5** Employee DTR: monthly grid + correction request form
+- [x] **#5** Employee DTR: monthly grid + correction request form — *done, see §3*
 - [ ] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings
 - [ ] **#7** Seed script: demo employees, punch history, pending correction
 - [ ] **#8** Verify: lint, typecheck, build, smoke test full flows
@@ -110,17 +110,26 @@ Files: `src/app/api/punch/route.ts`, `src/app/(app)/punch/page.tsx`, `punch-butt
 - **Test-harness gotchas (NOT app bugs, recorded so the next session doesn't repeat them)**: curl `-c JAR` without `-b JAR` **overwrites the jar empty** when the response has no Set-Cookie (this caused an entire false "all 401" suite); curl writes HttpOnly cookies as `#HttpOnly_…` lines — don't `grep -v '^#'` jars; React SSR text nodes are joined by `<!-- -->` — strip before grepping page HTML.
 - Repo gates after #4: `npm run lint` clean, `tsc` clean, `npm run build` PASSES.
 
-### Important: code for TODOs #5–#7 already exists but is UNVERIFIED
+### TODO #5 — COMPLETE (verified)
+
+Files: `/dtr` page, `components/dtr/dtr-table.tsx` (DtrTable/MonthNav/toDtrDays), `correction-dialog.tsx`, `/api/corrections`, `lib/corrections.ts` (create half; approve/reject exercised in #6).
+
+- **Bug fixed**: correction dialog prefilled `time` from the LAST punch while the selected `punchId` was the FIRST punch — now prefills from the selected punch.
+- **DTR page render (curl)**: month label + Prev/Next nav (`?month=YYYY-MM`, invalid values fall back to current month), Today badge, IN/OUT chips, First In/Last Out, Complete / Missing time out statuses, Report incorrect time buttons (past/today rows only), My-corrections table (empty state → pending rows with reasons, proposed times, status badges); grid correctly still shows original punch times while a request is pending (approval applies changes — #6).
+- **Corrections API (11 checks)**: 401 unauth; adjust valid → 200; duplicate pending on same punch → 400; add valid → 200; future time → 400 "must be in the past"; empty reason → 400; invalid mode/time/date formats → 400; **another user's punch and nonexistent punch both → 400 "Punch not found."** (no ownership leak).
+- **Hardening added (build-critical)**: `next build` on a *fresh* `data/` intermittently failed with `SqliteError: database is locked` — the 7 page-data workers race on first-time SQLite/WAL creation, and `PRAGMA journal_mode=WAL`'s exclusive-lock window is not covered by `busy_timeout`. `db.ts` now sets `busy_timeout=5000` AND retries the whole open() up to 15× (100ms sync backoff, closed-between-attempts). Verified: two consecutive fresh-DB builds pass.
+- Repo gates after #5: lint clean, tsc clean, build passes (incl. fresh-data case).
+
+### Important: code for TODOs #6–#7 already exists but is UNVERIFIED
 
 Written before the pause, compiles (`tsc` clean), **`npm run build` passes with them included**, but **not yet exercised at runtime** (except incidental 200s during the auth suite):
 
-- **#5 DTR**: `/dtr` page, `components/dtr/dtr-table.tsx` (+ `MonthNav`, `toDtrDays`), `correction-dialog.tsx`, `/api/corrections`. (lib half — `tagKinds`/`pairDay`/`buildMonthDtr` — exercised incidentally via the punch page; believed sound.)
-- **#6 Admin**: full `/admin/*` set + all `/api/admin/*` routes (see file list in `src/app`).
+- **#6 Admin**: full `/admin/*` set + all `/api/admin/*` routes (see file list in `src/app`). (approve/reject logic in `lib/corrections.ts` exists and is spec-shaped but unrun.)
 - **#7 Seed**: `scripts/seed.ts` written but **never run**.
 
 Remaining work for the next session:
 
-1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: DTR grid → correction request → admin approve/reject → punch log filters → settings save.
+1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: admin corrections approve/reject (verify punch mutation + audit fields), employees create/deactivate, punch log filters, settings save.
 2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #5–#7 edits).
 3. `next typegen` was run once; re-run if route types go stale.
 

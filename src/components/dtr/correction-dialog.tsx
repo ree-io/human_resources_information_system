@@ -50,7 +50,7 @@ export function CorrectionDialog({
     punches.length > 0 ? String(punches[0].id) : "",
   );
   const [time, setTime] = useState<string>(
-    punches.length > 0 ? punches[punches.length - 1].label : "17:00",
+    punches.length > 0 ? punches[0].label : "17:00",
   );
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
