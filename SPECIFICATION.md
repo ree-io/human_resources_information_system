@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **grilling complete (confirmed by user); implementation paused after TODO #3** (2026-10-18).
+Status: **grilling complete (confirmed by user); implementation paused after TODO #4** (2026-10-18).
 
 ---
 
@@ -69,7 +69,7 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
 - [x] **#1** Scaffold Next.js+TS+Tailwind+shadcn/ui project at repo root
 - [x] **#2** SQLite data layer: schema (users, punches, corrections, settings) + migrations — *done, see §3*
 - [x] **#3** Auth: cookie sessions, bcrypt, login page, first-run create-admin screen — *done, see §3*
-- [ ] **#4** Employee punch flow: status toggle, event log write, 60s cooldown
+- [x] **#4** Employee punch flow: status toggle, event log write, 60s cooldown — *done, see §3*
 - [ ] **#5** Employee DTR: monthly grid + correction request form
 - [ ] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings
 - [ ] **#7** Seed script: demo employees, punch history, pending correction
@@ -101,19 +101,27 @@ Live smoke suite against `next dev` (curl, cookie jars), all PASS:
 - **Dev-console noise (benign, known)**: `instant = false` on root layout is the *sanctioned* opt-out for session-reading routes per `authentication-with-cache-components.md`; dev still logs "Could not validate `instant` … NEXT_REDIRECT" and "unstable value `Date.now()` while prerendering" — **dev-only, build unaffected** (verified). Do not chase these; the doc's "cookies() outside Suspense is a build error" applies to routes without the opt-out.
 - Wipe-down done: `data/` removed (fresh start for next session), dev server killed.
 
-### Important: code for TODOs #4–#7 already exists but is UNVERIFIED
+### TODO #4 — COMPLETE (verified)
+
+Files: `src/app/api/punch/route.ts`, `src/app/(app)/punch/page.tsx`, `punch-button.tsx`, `src/lib/punches.ts`, `tagKinds`/`pairDay` in `src/lib/dtr.ts`.
+
+- **Bug fixed during review**: dead "Unbalanced punch count" branch in `punch/page.tsx` (condition `!clockedIn && punches.length % 2 === 1` was mutually exclusive with `clockedIn = length % 2 === 1`) — removed. The "still clocked in" reminder covers the in-progress case.
+- **Live smoke (curl, admin user acting as employee — admin punches via same flow)**: no session → 401; punch in → 200 with server-set `punched_at` + `ip` = first `x-forwarded-for` hop; page shows clocked-in state, Punch Out button, reminder, numbered IN/OUT punch list (parity correct through 4 punches); **cooldown → 429 "Please wait 60s…"** on both punch-out and next punch-in; punch out → 200, page flips to clocked-out with last-punch time-out label; event log = exactly one row per punch (4 rows after 4 punches).
+- **Test-harness gotchas (NOT app bugs, recorded so the next session doesn't repeat them)**: curl `-c JAR` without `-b JAR` **overwrites the jar empty** when the response has no Set-Cookie (this caused an entire false "all 401" suite); curl writes HttpOnly cookies as `#HttpOnly_…` lines — don't `grep -v '^#'` jars; React SSR text nodes are joined by `<!-- -->` — strip before grepping page HTML.
+- Repo gates after #4: `npm run lint` clean, `tsc` clean, `npm run build` PASSES.
+
+### Important: code for TODOs #5–#7 already exists but is UNVERIFIED
 
 Written before the pause, compiles (`tsc` clean), **`npm run build` passes with them included**, but **not yet exercised at runtime** (except incidental 200s during the auth suite):
 
-- **#4 Punch**: `/api/punch` (cooldown + IP), `/punch` + `punch-button.tsx`.
-- **#5 DTR**: `/dtr` page, `components/dtr/dtr-table.tsx` (+ `MonthNav`, `toDtrDays`), `correction-dialog.tsx`, `/api/corrections`.
+- **#5 DTR**: `/dtr` page, `components/dtr/dtr-table.tsx` (+ `MonthNav`, `toDtrDays`), `correction-dialog.tsx`, `/api/corrections`. (lib half — `tagKinds`/`pairDay`/`buildMonthDtr` — exercised incidentally via the punch page; believed sound.)
 - **#6 Admin**: full `/admin/*` set + all `/api/admin/*` routes (see file list in `src/app`).
 - **#7 Seed**: `scripts/seed.ts` written but **never run**.
 
 Remaining work for the next session:
 
-1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: punch toggle → cooldown 429 → DTR grid → correction request → admin approve/reject → punch log filters → settings save.
-2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #4–#7 edits).
+1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: DTR grid → correction request → admin approve/reject → punch log filters → settings save.
+2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #5–#7 edits).
 3. `next typegen` was run once; re-run if route types go stale.
 
 Nothing has been committed to git (working tree only). Do not commit unless explicitly asked.

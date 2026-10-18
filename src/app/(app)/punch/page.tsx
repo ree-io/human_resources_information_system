@@ -73,12 +73,6 @@ export default async function PunchPage() {
               Still clocked in — remember to punch out before you finish.
             </p>
           )}
-          {!clockedIn && punches.length > 0 && punches.length % 2 === 1 && (
-            <p className="mt-3 text-xs text-amber-600">
-              Unbalanced punch count — use “Report incorrect time” on your DTR if
-              something is wrong.
-            </p>
-          )}
         </CardContent>
       </Card>
     </div>
