@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { randomBytes } from "node:crypto";
 import { db } from "./db";
 
@@ -13,6 +14,12 @@ export type SessionUser = {
 };
 
 export async function getSessionUser(): Promise<SessionUser | null> {
+  // Defer to request time (Dynamic stage). With Cache Components +
+  // partialPrefetching, sync IO like Date.now() below is flagged during the
+  // static/prefetch stages of a navigation; awaiting connection() moves this
+  // read into the request stage, which is where a session lookup belongs.
+  await connection();
+
   const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token) return null;
 
