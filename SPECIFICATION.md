@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **grilling complete (confirmed by user); implementation paused after TODO #5** (2026-10-18).
+Status: **grilling complete (confirmed by user); implementation paused after TODO #6** (2026-10-18).
 
 ---
 
@@ -71,7 +71,7 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
 - [x] **#3** Auth: cookie sessions, bcrypt, login page, first-run create-admin screen — *done, see §3*
 - [x] **#4** Employee punch flow: status toggle, event log write, 60s cooldown — *done, see §3*
 - [x] **#5** Employee DTR: monthly grid + correction request form — *done, see §3*
-- [ ] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings
+- [x] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings — *done, see §3*
 - [ ] **#7** Seed script: demo employees, punch history, pending correction
 - [ ] **#8** Verify: lint, typecheck, build, smoke test full flows
 
@@ -120,17 +120,23 @@ Files: `/dtr` page, `components/dtr/dtr-table.tsx` (DtrTable/MonthNav/toDtrDays)
 - **Hardening added (build-critical)**: `next build` on a *fresh* `data/` intermittently failed with `SqliteError: database is locked` — the 7 page-data workers race on first-time SQLite/WAL creation, and `PRAGMA journal_mode=WAL`'s exclusive-lock window is not covered by `busy_timeout`. `db.ts` now sets `busy_timeout=5000` AND retries the whole open() up to 15× (100ms sync backoff, closed-between-attempts). Verified: two consecutive fresh-DB builds pass.
 - Repo gates after #5: lint clean, tsc clean, build passes (incl. fresh-data case).
 
-### Important: code for TODOs #6–#7 already exists but is UNVERIFIED
+### TODO #6 — COMPLETE (verified)
 
-Written before the pause, compiles (`tsc` clean), **`npm run build` passes with them included**, but **not yet exercised at runtime** (except incidental 200s during the auth suite):
+Files: `admin/layout.tsx` + 5 screens (employees, punches, corrections, dtr, settings) + clients (`employees-client`, `corrections-client`, `settings-form`, `employee-picker`) + all 4 `/api/admin/*` routes.
 
-- **#6 Admin**: full `/admin/*` set + all `/api/admin/*` routes (see file list in `src/app`). (approve/reject logic in `lib/corrections.ts` exists and is spec-shaped but unrun.)
-- **#7 Seed**: `scripts/seed.ts` written but **never run**.
+- **Code review found no bugs** (first TODO so far). Spec-shaped details confirmed present: `requireAdmin` on layout AND pages (employee → redirect `/punch`); API role checks return 403 without try/catch (no swallowed NEXT_REDIRECT); self-deactivate and self-demote blocked; password reset/deactivation delete sessions; `canReport={false}` on admin DTR view; approve audit stores `ms (HH:MM)` old→new; reject requires note; punch log shows IN/OUT kind + IP with employee/date-range filters; nav badge = pending count.
+- **Live smoke (44 checks)**: queue renders w/ modes + counts + nav badge; **approve adjust** → punch time mutated to proposed, ip preserved, audit `17:00→17:20` + `reviewed_by=1`; **approve add** → new punch row (`ip null`, correct day/time) + audit punch id; re-approve → 400 "no longer pending"; **reject** empty note → 400, with note → stored, punch untouched; **admin approves own correction → 200**; employees API 409/400s + rename; **employee on any admin API → 403**, employee on `/admin/*` page → redirect `/punch`; punch log + `?user=&from=&to=` filter isolation; admin DTR shows selected employee's approved changes, read-only (no report buttons); settings 400s + save + reflected on `/punch` (office name) and `/dtr` (name + tz); **deactivate → login 401 + old session dead + history kept (4 rows) → reactivate → login 200**; password reset invalidates old password; invalid action/id → 400.
+- Repo gates after #6: lint clean, tsc clean, build passes.
+
+### TODO #7 — code written, UNVERIFIED (only remaining pre-verification item)
+
+- `scripts/seed.ts` compiles but **has never run**. It aborts if any user exists (`data/` is currently empty — good). Expected: admin `admin/admin123`, 5 employees `jreyes/asantos/mcruz/lgarcia/rlim` + `password123`, ~35 weekdays of punch history, 1 pending correction (Ana Santos missing out-punch yesterday → 17:30).
+- Known risk for first run: `bcrypt.hashSync` ×7 users + ~35 days ×2+ punch inserts is fast; watch for timezone edge if run near midnight Manila.
 
 Remaining work for the next session:
 
-1. `npm run seed` (aborts if users exist — `data/` is currently empty) then `npm run dev` smoke: admin corrections approve/reject (verify punch mutation + audit fields), employees create/deactivate, punch log filters, settings save.
-2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #5–#7 edits).
+1. `npm run seed`, then `npm run dev` smoke: seeded login as employee (`jreyes/password123`) → DTR shows history → pending correction visible in nav badge for `admin/admin123` → approve it → seed-data sanity (no orphan pairs, statuses sensible).
+2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #7 edits).
 3. `next typegen` was run once; re-run if route types go stale.
 
 Nothing has been committed to git (working tree only). Do not commit unless explicitly asked.
