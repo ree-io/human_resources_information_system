@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **grilling complete (confirmed by user); implementation paused after TODO #6** (2026-10-18).
+Status: **COMPLETE — all 8 TODOs done, verified, gates green** (2026-10-19). Demo-ready: `data/` is seeded; run `npm run dev` and log in (credentials below / §3 #7).
 
 ---
 
@@ -72,8 +72,8 @@ Aborts if users exist. Creates admin `admin/admin123`, 5 employees (`jreyes`, `a
 - [x] **#4** Employee punch flow: status toggle, event log write, 60s cooldown — *done, see §3*
 - [x] **#5** Employee DTR: monthly grid + correction request form — *done, see §3*
 - [x] **#6** Admin screens: employees, punch log, corrections queue, DTR view, settings — *done, see §3*
-- [ ] **#7** Seed script: demo employees, punch history, pending correction
-- [ ] **#8** Verify: lint, typecheck, build, smoke test full flows
+- [x] **#7** Seed script: demo employees, punch history, pending correction — *done, see §3*
+- [x] **#8** Verify: lint, typecheck, build, smoke test full flows — *done, see §3*
 
 ---
 
@@ -128,15 +128,19 @@ Files: `admin/layout.tsx` + 5 screens (employees, punches, corrections, dtr, set
 - **Live smoke (44 checks)**: queue renders w/ modes + counts + nav badge; **approve adjust** → punch time mutated to proposed, ip preserved, audit `17:00→17:20` + `reviewed_by=1`; **approve add** → new punch row (`ip null`, correct day/time) + audit punch id; re-approve → 400 "no longer pending"; **reject** empty note → 400, with note → stored, punch untouched; **admin approves own correction → 200**; employees API 409/400s + rename; **employee on any admin API → 403**, employee on `/admin/*` page → redirect `/punch`; punch log + `?user=&from=&to=` filter isolation; admin DTR shows selected employee's approved changes, read-only (no report buttons); settings 400s + save + reflected on `/punch` (office name) and `/dtr` (name + tz); **deactivate → login 401 + old session dead + history kept (4 rows) → reactivate → login 200**; password reset invalidates old password; invalid action/id → 400.
 - Repo gates after #6: lint clean, tsc clean, build passes.
 
-### TODO #7 — code written, UNVERIFIED (only remaining pre-verification item)
+### TODO #7 — COMPLETE (verified)
 
-- `scripts/seed.ts` compiles but **has never run**. It aborts if any user exists (`data/` is currently empty — good). Expected: admin `admin/admin123`, 5 employees `jreyes/asantos/mcruz/lgarcia/rlim` + `password123`, ~35 weekdays of punch history, 1 pending correction (Ana Santos missing out-punch yesterday → 17:30).
-- Known risk for first run: `bcrypt.hashSync` ×7 users + ~35 days ×2+ punch inserts is fast; watch for timezone edge if run near midnight Manila.
+- **Two real defects found and fixed before first run**:
+  1. *Weekend bug*: correction targeted "yesterday" — when run Sun/Mon, `isWeekday` failed and **no pending correction was created**. Now targets the most recent weekday strictly before today (Manila), scanning back up to 7 days.
+  2. *Incoherent demo data*: Ana's target-day punches were random — 92% chance she already had a 17:xx punch-out, so approving the "missing punch-out" correction would append a 5th punch and *unbalance* a complete day. Now Ana's target day is force-generated without a punch-out (`missOut = true`), so approval genuinely completes the gap (works regardless of the random `skipLunch` too).
+- Also fixed while running: `const now` dropped in refactor (tsc caught), morning hour not zero-padded (`7:42` → `parseLocalDateTime` requires `HH:MM` — crashed mid-seed after users were created; wipe + reseed required).
+- Verified: fresh run → 6 users, **453 punches**, 1 pending correction (Ana Santos, **2026-10-16** = Fri, correct as most-recent weekday on a Sunday run); second run aborts with exit 1 ("Database already has users").
+- Live demo smoke on seeded data: both logins 200; queue shows 1 pending w/ mode + date + nav badge; **approve seeded correction** → Ana's Oct 16 row becomes `IN 07:35 / OUT 17:30 / Complete`, audit `old="(missing punch)" new="punch #455 added at … (17:30)"`, queue → 0; employee DTR shows Sept + Oct history, report buttons, weekends muted, future days `— No punches` (never a false "Missing" status); punch IN/OUT on empty Sunday + 60s cooldown 429; punch-log filters; settings defaults `My Company` / `Asia/Manila`.
+- Seed leaves `data/` populated — **intentional**: the repo is demo-ready (`npm run dev` → log in immediately). Re-seed: delete `data/` first.
 
-Remaining work for the next session:
+### TODO #8 — COMPLETE (final verify)
 
-1. `npm run seed`, then `npm run dev` smoke: seeded login as employee (`jreyes/password123`) → DTR shows history → pending correction visible in nav badge for `admin/admin123` → approve it → seed-data sanity (no orphan pairs, statuses sensible).
-2. Re-run lint/tsc/build at the end (all clean as of this pause, but re-verify after #7 edits).
-3. `next typegen` was run once; re-run if route types go stale.
-
-Nothing has been committed to git (working tree only). Do not commit unless explicitly asked.
+- **Full employee→admin correction cycle re-run on seed data**: jreyes punch → `mode:"adjust"` correction (`{mode, punchId, targetDate, time, reason}` — note: API takes `time` HH:MM + `targetDate`, **not** an ISO `proposedAt`) → duplicate pending on same punch → 400 → future proposed time → 400 → admin approve → DB punch = 09:15 Manila, audit `old="1792373423096 (09:30)" new="1792372500000 (09:15)"` (format `ms (HH:MM)`) → employee grid shows 09:15, no pending rows.
+- Final gates: **lint clean, tsc clean, `npm run build` passes** (fresh full route table, static `/login` `/setup`, rest dynamic).
+- Harness lesson (re-confirmed): BSD `sed` can't split on `\n` in replacement — "row-scoped" greps over unsplit one-line HTML match other rows/RSC payload and produce false FAILs; verify row text via JS `split(/<tr/)` instead.
+- Git: TODOs #1–#6 already committed (log: `465a289` …); **`scripts/seed.ts` modifications from #7 are uncommitted (working tree only)**. Do not commit unless explicitly asked (global `commit.gpgsign=true`).

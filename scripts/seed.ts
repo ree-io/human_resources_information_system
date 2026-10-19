@@ -52,8 +52,17 @@ const employees = [
 
 console.log(`  admin (#${adminId}) + ${employees.length} employees created`);
 
-let punchCount = 0;
 const now = Date.now();
+// Most recent weekday strictly before today (Manila) — the demo correction
+// always targets a day that has punch history, even when seeding on a weekend.
+let targetDayKey: string | null = null;
+for (let back = 1; back <= 7 && !targetDayKey; back++) {
+  const key = dayKey(now - back * 24 * 60 * 60 * 1000, TZ);
+  if (isWeekday(key)) targetDayKey = key;
+}
+const ana = employees[1];
+
+let punchCount = 0;
 
 for (let back = 1; back <= 35; back++) {
   const dayMs = now - back * 24 * 60 * 60 * 1000;
@@ -62,14 +71,15 @@ for (let back = 1; back <= 35; back++) {
 
   for (const emp of employees) {
     const skipLunch = Math.random() < 0.15;
-    const missOut = Math.random() < 0.08;
+    // Ana's target day deliberately lacks a punch-out so the pending
+    // correction below actually completes a real gap when approved.
+    const missOut = emp.id === ana.id && key === targetDayKey
+      ? true
+      : Math.random() < 0.08;
 
     const punches: [string, string][] = [
-      [`0${rand(7, 8)}`.slice(-2) + ":" + String(rand(50, 59)).padStart(2, "0"), "in"],
+      [`${String(rand(7, 8)).padStart(2, "0")}:${String(rand(0, 59)).padStart(2, "0")}`, "in"],
     ];
-    // Morning in: 07:50-08:59
-    punches.length = 0;
-    punches.push([`${rand(7, 8)}:${String(rand(0, 59)).padStart(2, "0")}`, "in"]);
     if (!skipLunch) {
       punches.push([`12:${String(rand(0, 15)).padStart(2, "0")}`, "out"]);
       punches.push([`12:${String(rand(30, 59)).padStart(2, "0")}`, "in"]);
@@ -89,22 +99,24 @@ for (let back = 1; back <= 35; back++) {
 
 console.log(`  ${punchCount} punches inserted`);
 
-// One pending correction: Ana Santos missed yesterday's punch-out.
-const ana = employees[1];
-const yesterday = dayKey(now - 24 * 60 * 60 * 1000, TZ);
-if (isWeekday(yesterday)) {
+// One pending correction: Ana Santos missed her out-punch on the target day.
+if (targetDayKey) {
   try {
     createCorrection({
       userId: ana.id,
       punchId: null,
-      targetDate: yesterday,
-      proposedAt: parseLocalDateTime(yesterday, "17:30", TZ),
-      reason: "Forgot to punch out yesterday — I left the office at 5:30 PM.",
+      targetDate: targetDayKey,
+      proposedAt: parseLocalDateTime(targetDayKey, "17:30", TZ),
+      reason: "Forgot to punch out that day — I left the office at 5:30 PM.",
     });
-    console.log("  1 pending correction request created");
+    console.log(
+      `  1 pending correction request created (Ana Santos, ${targetDayKey})`,
+    );
   } catch (err) {
     console.warn("  could not create demo correction:", (err as Error).message);
   }
+} else {
+  console.warn("  no weekday found in the last 7 days — no demo correction");
 }
 
 console.log("\nDone. Demo credentials:");
