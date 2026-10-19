@@ -37,6 +37,8 @@ export function SetupForm() {
       }
       router.push(data.redirect ?? "/admin");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

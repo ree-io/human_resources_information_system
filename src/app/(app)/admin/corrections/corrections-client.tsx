@@ -53,6 +53,8 @@ function ApproveButton({ row }: { row: CorrectionRow }) {
       toast.success("Correction approved and applied.");
       setOpen(false);
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -116,6 +118,8 @@ function RejectButton({ row }: { row: CorrectionRow }) {
       setOpen(false);
       setNote("");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

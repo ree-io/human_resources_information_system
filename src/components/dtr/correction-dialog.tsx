@@ -84,6 +84,8 @@ export function CorrectionDialog({
       setOpen(false);
       setReason("");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

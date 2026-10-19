@@ -64,6 +64,8 @@ export function SettingsForm({
       }
       toast.success("Settings saved.");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

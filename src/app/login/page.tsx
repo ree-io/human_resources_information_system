@@ -36,6 +36,8 @@ export default function LoginPage() {
       }
       router.push(data.redirect ?? "/");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

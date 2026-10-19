@@ -64,6 +64,8 @@ function CreateDialog() {
       setTempPassword("");
       setRole("employee");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -183,6 +185,8 @@ function EditDialog({ employee }: { employee: Employee }) {
       setOpen(false);
       setNewPassword("");
       router.refresh();
+    } catch {
+      toast.error("Could not reach the server. Please try again.");
     } finally {
       setBusy(false);
     }

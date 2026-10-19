@@ -1,6 +1,6 @@
 # HRIS DTR v1 — Specification
 
-Status: **COMPLETE — all 8 TODOs done, verified, gates green** (2026-10-19). Demo-ready: `data/` is seeded; run `npm run dev` and log in (credentials below / §3 #7).
+Status: **COMPLETE — all 8 TODOs done, verified, gates green** (2026-10-19). Demo-ready: `data/` is seeded; run `npm run dev` and log in (credentials below / §3 #7). **Requires Node ≥22.14** (see demo prerequisites).
 
 ---
 
@@ -9,6 +9,7 @@ Status: **COMPLETE — all 8 TODOs done, verified, gates green** (2026-10-19). D
 ### 1.1 Scope & phase
 
 - Real tool for a small team, but **v1 is a local demo**: `npm run dev` at `localhost:3000`, HTTP, **computer browsers only** (no responsive/mobile/PWA work — smartphone aspect was explicitly dropped in Round 5, superseding earlier decisions).
+- **Demo prerequisites — Node ≥22.14** (repo pins `22.23.3` in `.nvmrc`): `better-sqlite3` v13 prebuilds are compiled with `NAPI_VERSION=10`, which exists only on Node ≥22.14; on older Node (e.g. the machine-wide default 20.19.3) the process **SIGSEGVs** on the first request that touches the DB. Mitigations in place: (a) nvm auto-switch hook in `~/.zshrc` applies `.nvmrc` on `cd` into the repo (existing terminals need `source ~/.zshrc` or a restart once); (b) `predev`/`prebuild`/`prestart`/`preseed` guard (`scripts/check-node.mjs`) fails fast with instructions instead of segfaulting.
 - Later-version concerns (explicitly out of v1): public VPS deployment ("punch from anywhere"), SMTP/email, CSV export, localization, SSO, geo-fencing, native phone app.
 - **English-only** UI.
 
@@ -127,6 +128,17 @@ Files: `admin/layout.tsx` + 5 screens (employees, punches, corrections, dtr, set
 - **Code review found no bugs** (first TODO so far). Spec-shaped details confirmed present: `requireAdmin` on layout AND pages (employee → redirect `/punch`); API role checks return 403 without try/catch (no swallowed NEXT_REDIRECT); self-deactivate and self-demote blocked; password reset/deactivation delete sessions; `canReport={false}` on admin DTR view; approve audit stores `ms (HH:MM)` old→new; reject requires note; punch log shows IN/OUT kind + IP with employee/date-range filters; nav badge = pending count.
 - **Live smoke (44 checks)**: queue renders w/ modes + counts + nav badge; **approve adjust** → punch time mutated to proposed, ip preserved, audit `17:00→17:20` + `reviewed_by=1`; **approve add** → new punch row (`ip null`, correct day/time) + audit punch id; re-approve → 400 "no longer pending"; **reject** empty note → 400, with note → stored, punch untouched; **admin approves own correction → 200**; employees API 409/400s + rename; **employee on any admin API → 403**, employee on `/admin/*` page → redirect `/punch`; punch log + `?user=&from=&to=` filter isolation; admin DTR shows selected employee's approved changes, read-only (no report buttons); settings 400s + save + reflected on `/punch` (office name) and `/dtr` (name + tz); **deactivate → login 401 + old session dead + history kept (4 rows) → reactivate → login 200**; password reset invalidates old password; invalid action/id → 400.
 - Repo gates after #6: lint clean, tsc clean, build passes.
+
+### Post-completion hotfixes (2026-10-19, first real browser session)
+
+Curl-based verification missed three browser-only issues; all found, fixed, and re-verified with a headless-Chrome CDP end-to-end run (login → redirect → admin nav) on **both** `localhost` and `127.0.0.1`; lint/tsc/build green (21 pages):
+
+1. **`/admin` 404**: the login API (`redirect: "/admin"`) and root page both sent admins to `/admin`, but only `/admin/<screen>` routes existed. Fix: new `src/app/(app)/admin/page.tsx` (`requireAdmin` + redirect to `/admin/employees`, the first admin nav link). Missed by #3/#6 verification because no test ever followed the redirect to its target.
+2. **Dead login button on `127.0.0.1`**: Next 16 blocks dev HMR websocket upgrades from non-localhost origins (`⚠ Blocked cross-origin request … /_next/hmr`); without the HMR connect, Turbopack never hydrates and the form silently falls back to native submit (button never flips to "Signing in…", Chrome logs ws `ERR_INVALID_HTTP_RESPONSE`). Fix: `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts` (per Next's own remediation hint). Both hosts work now.
+3. **Silent submit failures**: 8 of 9 fetch handlers used `try/finally` without `catch` (only `punch-button.tsx` had one) — any network/JSON error became an unhandled rejection with zero UI feedback (the literal "clicked sign in, nothing happens" symptom when the server hiccuped). Fix: `catch → toast.error("Could not reach the server. Please try again.")` added to login, setup, correction-dialog, employees (×2), corrections (×2), settings.
+4. **Dev server SIGSEGV on user's machine (Node version)**: `npm run dev` booted fine but died on the first request touching the DB ("cannot reach site", terminal returns to prompt). Root cause (proven via macOS crash reports + isolated repro): `better-sqlite3@13.0.3` prebuilds are compiled with `NAPI_VERSION=10`, which exists only on Node ≥22.14 — the user's iTerm2 default (nvm) is 20.19.3 (NAPI 9), and Node doesn't reject too-new addons, it **segfaults** (`EXC_BAD_ACCESS at 0x90 in napi_module_register_by_symbol during DLOpen` — identical address in all crash reports). All earlier testing missed it because the agent shell resolved node v22.23.3. Fix (project-scoped, no global default change): `.nvmrc` = `22.23.3`; `scripts/check-node.mjs` wired to `predev`/`prebuild`/`prestart`/`preseed` fails fast with instructions; nvm official auto-switch hook appended to `~/.zshrc` (applies `.nvmrc` on `cd`, reverts to default elsewhere). Verified: hook switches 20→22 on entry and reverts on exit; guard aborts under node 20 with clear message; full login E2E green under node 22; no crash reports after the fix.
+
+Tooling note: dev console also shows `unstable value Date.now() while prerendering` errors on admin routes — same known-benign dev-only class as the `NEXT_REDIRECT` noise (build unaffected, re-verified).
 
 ### TODO #7 — COMPLETE (verified)
 
